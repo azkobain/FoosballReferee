@@ -1,3 +1,21 @@
 <resources>
-    <string name="app_name">FoosballReferee</string>
+    <string name="app_name">Foosball Referee</string>
+    <string name="time_no_mid">15</string>
+    <string name="time_mid">10</string>
+    <string name="reset_first">Reset</string>
+    <string name="reset_second">Reset: Warning</string>
+    <string name="reset_third">Reset: Technical</string>
+    <string name="technical">Technical</string>
+    <string name="score">Score</string>
+    <string name="initial_score">0</string>
+    <string name="initial_timeout">2</string>
+    <string name="team_left">&lt;-</string>
+    <string name="team_right">-&gt;</string>
+    <string name="serve">Serve</string>
+    <string name="new_game">New game</string>
+    <string name="time_expired">Time Expired</string>
+    <string name="timeout_expired">End of timeout</string>
+    <string name="time_to_prepare">Prepare for game</string>
+    <string name="accept_new">Press again to start new game</string>
+    <string name="remain">Timeouts remain:</string>
 </resources>
