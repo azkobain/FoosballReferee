@@ -9,8 +9,8 @@
     <string name="score">Score</string>
     <string name="initial_score">0</string>
     <string name="initial_timeout">2</string>
-    <string name="team_left">&lt;-</string>
-    <string name="team_right">-&gt;</string>
+    <string name="team_left">&lt;---</string>
+    <string name="team_right">---&gt;</string>
     <string name="serve">Serve</string>
     <string name="new_game">New game</string>
     <string name="time_expired">Time Expired</string>
