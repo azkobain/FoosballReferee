@@ -41,7 +41,8 @@ public class GameSet {
 
     void setResets() {
         for (int i = 0; i < 2; i++)
-            resets[i] = 1;
+            if (resets[i] > 0)
+                resets[i] = 1;
     }
     void addReset(int i) {
         resets[i]++;

@@ -1,5 +1,6 @@
 package com.ihm.nioh.foosballreferee;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.os.Build;
@@ -10,6 +11,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.TypedValue;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -33,87 +35,99 @@ public class SetActivity extends AppCompatActivity {
     private Boolean acceptNew = false;
     enum Sides {LEFT, RIGHT}
     Sides currentSide, goalSide;
+    private boolean inHandler = false;
 
     private void startTimer(States state) {
-        currentGameSet.setCurrentState(state);
-        currentGameSet.setPreviousState(state);
-        setTimer();
-        if (!showResets) {
-            resetLeft.setVisibility(View.VISIBLE);
-            resetRight.setVisibility(View.VISIBLE);
-            showResets = true;
+        if (!inHandler) {
+            inHandler = true;
+            currentGameSet.setCurrentState(state);
+            currentGameSet.setPreviousState(state);
+            setTimer();
+            if (!showResets) {
+                resetLeft.setVisibility(View.VISIBLE);
+                resetRight.setVisibility(View.VISIBLE);
+                showResets = true;
+            }
         }
     }
 
     private void setReset(Sides side, Button pressed) {
-        int sidePosition = side.ordinal();
+        if (!inHandler) {
+            inHandler = true;
+            int sidePosition = side.ordinal();
 
-        currentGameSet.addReset(sidePosition);
-        if (currentGameSet.getReset(sidePosition) > 1) {
-            if (currentGameSet.getReset(sidePosition) % 2 == 0) {
-                String buttonNewText = getResources().getString(R.string.reset_second);
+            currentGameSet.addReset(sidePosition);
+            if (currentGameSet.getReset(sidePosition) > 1) {
+                if (currentGameSet.getReset(sidePosition) % 2 == 0) {
+                    String buttonNewText = getResources().getString(R.string.reset_second);
 
-                pressed.setText(buttonNewText);
-                if (currentGameSet.getPreviousState() != States.STOP)
-                    currentGameSet.setCurrentState(currentGameSet.getPreviousState());
+                    pressed.setText(buttonNewText);
+                    if (currentGameSet.getPreviousState() != States.STOP)
+                        currentGameSet.setCurrentState(currentGameSet.getPreviousState());
+                } else {
+                    String buttonNewText = getResources().getString(R.string.reset_third);
+
+                    showResets = false;
+                    resetRight.setVisibility(View.INVISIBLE);
+                    resetLeft.setVisibility(View.INVISIBLE);
+
+                    pressed.setText(buttonNewText);
+                    outputInfo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 80);
+                    currentGameSet.setCurrentState(States.STOP);
+                }
             }
-            else {
-                String buttonNewText = getResources().getString(R.string.reset_third);
-
-                showResets = false;
-                resetRight.setVisibility(View.INVISIBLE);
-                resetLeft.setVisibility(View.INVISIBLE);
-
-                pressed.setText(buttonNewText);
-                outputInfo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 80);
-                currentGameSet.setCurrentState(States.STOP);
-            }
+            setTimer();
         }
-        setTimer();
     }
 
     private void setScore(Sides side, Button pressed) {
-        currentGameSet.incScore(side.ordinal());
+        if (!inHandler) {
+            inHandler = true;
+            currentGameSet.incScore(side.ordinal());
 
-        int score = currentGameSet.getScore(side.ordinal());
+            int score = currentGameSet.getScore(side.ordinal());
 
-        pressed.setText(String.format(Locale.getDefault(),"%d", score));
-        currentGameSet.setCurrentState(States.GOAL);
-        currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
-        setTimer();
-        currentGameSet.setSideNotFreeze(true);
-        goalSide = side;
-        setOwnerSide();
-        currentGameSet.setSideNotFreeze(false);
+            pressed.setText(String.format(Locale.getDefault(), "%d", score));
+            currentGameSet.setCurrentState(States.GOAL);
+            currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
+            setTimer();
+            currentGameSet.setSideNotFreeze(true);
+            goalSide = side;
+            setOwnerSide();
+            currentGameSet.setSideNotFreeze(false);
 
-        String reset = getResources().getString(R.string.reset_first);
+            String reset = getResources().getString(R.string.reset_first);
 
-        resetLeft.setText(reset);
-        resetLeft.setVisibility(View.INVISIBLE);
+            resetLeft.setText(reset);
+            resetLeft.setVisibility(View.INVISIBLE);
 
-        resetRight.setText(reset);
-        resetRight.setVisibility(View.INVISIBLE);
+            resetRight.setText(reset);
+            resetRight.setVisibility(View.INVISIBLE);
 
-        currentGameSet.setResets();
+            currentGameSet.setResets();
 
-        showResets = false;
+            showResets = false;
+        }
     }
 
     private void setTimeout(Sides side, Button pressed) {
-        if (currentGameSet.isSideNotFreeze())
-            currentGameSet.setSideNotFreeze(false);
+        if (!inHandler) {
+            inHandler = true;
+            if (currentGameSet.isSideNotFreeze())
+                currentGameSet.setSideNotFreeze(false);
 
-        int timeout = currentGameSet.getTimeout(side.ordinal());
+            int timeout = currentGameSet.getTimeout(side.ordinal());
 
-        if (timeout > 0) {
-            resetRight.setEnabled(false);
-            resetLeft.setEnabled(false);
-            currentGameSet.decTimeout(side.ordinal());
-            timeout = currentGameSet.getTimeout(side.ordinal());
-            pressed.setText(String.format(Locale.getDefault(), "%d", timeout));
-            currentGameSet.setCurrentState(States.TIMEOUT);
-            currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
-            setTimer();
+            if (timeout > 0) {
+                resetRight.setEnabled(false);
+                resetLeft.setEnabled(false);
+                currentGameSet.decTimeout(side.ordinal());
+                timeout = currentGameSet.getTimeout(side.ordinal());
+                pressed.setText(String.format(Locale.getDefault(), "%d", timeout));
+                currentGameSet.setCurrentState(States.TIMEOUT);
+                currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
+                setTimer();
+            }
         }
     }
 
@@ -204,51 +218,55 @@ public class SetActivity extends AppCompatActivity {
     }
 
     private void startNewGameSet() {
-        if (!acceptNew) {
-            if (timerStart) {
-                timerStart = false;
-                countDownTimer.cancel();
+        if (!inHandler) {
+            inHandler = true;
+            if (!acceptNew) {
+                if (timerStart) {
+                    timerStart = false;
+                    countDownTimer.cancel();
+                }
+                String logo = getResources().getString(R.string.accept_new);
+
+                outputInfo.setText(logo);
+                outputInfo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 45);
+                acceptNew = true;
+            } else {
+                currentGameSet.newGameSet();
+
+                String logo = getResources().getString(R.string.app_name);
+
+                outputInfo.setText(logo);
+                outputInfo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 70);
+
+
+                String reset = getResources().getString(R.string.reset_first);
+
+                resetLeft.setText(reset);
+                resetLeft.setVisibility(View.INVISIBLE);
+
+                resetRight.setText(reset);
+                resetRight.setVisibility(View.INVISIBLE);
+
+                showResets = false;
+
+                timeoutLeft.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getTimeout(0)));
+                timeoutRight.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getTimeout(0)));
+
+                scoreLeft.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getScore(0)));
+                scoreRight.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getScore(0)));
+
+                if (timerStart) {
+                    timerStart = false;
+                    countDownTimer.cancel();
+                }
+
+                acceptNew = false;
             }
-            String logo = getResources().getString(R.string.accept_new);
-
-            outputInfo.setText(logo);
-            outputInfo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 45);
-            acceptNew = true;
-        }
-        else {
-            currentGameSet.newGameSet();
-
-            String logo = getResources().getString(R.string.app_name);
-
-            outputInfo.setText(logo);
-            outputInfo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 70);
-
-
-            String reset = getResources().getString(R.string.reset_first);
-
-            resetLeft.setText(reset);
-            resetLeft.setVisibility(View.INVISIBLE);
-
-            resetRight.setText(reset);
-            resetRight.setVisibility(View.INVISIBLE);
-
-            showResets = false;
-
-            timeoutLeft.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getTimeout(0)));
-            timeoutRight.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getTimeout(0)));
-
-            scoreLeft.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getScore(0)));
-            scoreRight.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getScore(0)));
-
-            if (timerStart) {
-                timerStart = false;
-                countDownTimer.cancel();
-            }
-
-            acceptNew = false;
+            inHandler = false;
         }
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -263,35 +281,67 @@ public class SetActivity extends AppCompatActivity {
 // Time section buttons
 
         final Button timeNoMid = findViewById(R.id.time_no_mid);
-        timeNoMid.setOnClickListener(new View.OnClickListener() {
+        timeNoMid.setOnTouchListener(new View.OnTouchListener() {
             @Override
-            public void onClick(View v) {
-                startTimer(States.GAME_NO_MID);
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        startTimer(States.GAME_NO_MID);
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        inHandler = false;
+                        return true;
+                }
+                return false;
             }
         });
 
         final Button timeMid = findViewById(R.id.time_mid);
-        timeMid.setOnClickListener(new View.OnClickListener() {
+        timeMid.setOnTouchListener(new View.OnTouchListener() {
             @Override
-            public void onClick(View v) {
-                startTimer(States.GAME_MID);
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        startTimer(States.GAME_MID);
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        inHandler = false;
+                        return true;
+                }
+                return false;
             }
         });
 
         resetLeft = findViewById(R.id.reset_left);
-        resetLeft.setOnClickListener(new View.OnClickListener() {
+        resetLeft.setOnTouchListener(new View.OnTouchListener() {
             @Override
-            public void onClick(View v) {
-                setReset(Sides.LEFT, resetLeft);
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        setReset(Sides.LEFT, resetLeft);
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        inHandler = false;
+                        return true;
+                }
+                return false;
             }
         });
         resetLeft.setVisibility(View.INVISIBLE);
 
         resetRight = findViewById(R.id.reset_right);
-        resetRight.setOnClickListener(new View.OnClickListener() {
+        resetRight.setOnTouchListener(new View.OnTouchListener() {
             @Override
-            public void onClick(View v) {
-                setReset(Sides.RIGHT, resetRight);
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        setReset(Sides.RIGHT, resetRight);
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        inHandler = false;
+                        return true;
+                }
+                return false;
             }
         });
         resetRight.setVisibility(View.INVISIBLE);
@@ -300,18 +350,34 @@ public class SetActivity extends AppCompatActivity {
 // Timeout section buttons
 
         timeoutLeft = findViewById(R.id.timeout_left);
-        timeoutLeft.setOnClickListener(new View.OnClickListener() {
+        timeoutLeft.setOnTouchListener(new View.OnTouchListener() {
             @Override
-            public void onClick(View v) {
-                setTimeout(Sides.LEFT, timeoutLeft);
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        setTimeout(Sides.LEFT, timeoutLeft);
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        inHandler = false;
+                        return true;
+                }
+                return false;
             }
         });
 
         timeoutRight = findViewById(R.id.timeout_right);
-        timeoutRight.setOnClickListener(new View.OnClickListener() {
+        timeoutRight.setOnTouchListener(new View.OnTouchListener() {
             @Override
-            public void onClick(View v) {
-                setTimeout(Sides.RIGHT, timeoutRight);
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        setTimeout(Sides.RIGHT, timeoutRight);
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        inHandler = false;
+                        return true;
+                }
+                return false;
             }
         });
 
@@ -335,18 +401,34 @@ public class SetActivity extends AppCompatActivity {
         });
 
         scoreLeft = findViewById(R.id.score_left);
-        scoreLeft.setOnClickListener(new View.OnClickListener() {
+        scoreLeft.setOnTouchListener(new View.OnTouchListener() {
             @Override
-            public void onClick(View v) {
-                setScore(Sides.LEFT, scoreLeft);
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        setScore(Sides.LEFT, scoreLeft);
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        inHandler = false;
+                        return true;
+                }
+                return false;
             }
         });
 
         scoreRight = findViewById(R.id.score_right);
-        scoreRight.setOnClickListener(new View.OnClickListener() {
+        scoreRight.setOnTouchListener(new View.OnTouchListener() {
             @Override
-            public void onClick(View v) {
-                setScore(Sides.RIGHT, scoreRight);
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        setScore(Sides.RIGHT, scoreRight);
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        inHandler = false;
+                        return true;
+                }
+                return false;
             }
         });
     }
@@ -355,9 +437,11 @@ public class SetActivity extends AppCompatActivity {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if ((keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)) {
             startTimer(States.GAME_NO_MID);
+            inHandler = false;
             return true;
         } else if ((keyCode == KeyEvent.KEYCODE_VOLUME_UP)) {
             startTimer(States.GAME_MID);
+            inHandler = false;
             return true;
         } else
             return super.onKeyDown(keyCode, event);
