@@ -1,7 +1,7 @@
 package com.ihm.nioh.foosballreferee;
 
 enum States {
-    STOP(0), GAME_MID(10), GAME_NO_MID(15), GOAL(5), TIMEOUT(30);
+    UNDO(0), STOP(0), GAME_MID(10), GAME_NO_MID(15), GOAL(5), TIMEOUT(30);
 
     private double time;
 
@@ -51,6 +51,9 @@ public class GameSet {
         return resets[i];
     }
 
+    void decScore(int i) {
+        score[i]--;
+    }
     void incScore(int i) {
         score[i]++;
     }
@@ -60,6 +63,9 @@ public class GameSet {
 
     void decTimeout(int i) {
         timeouts[i]--;
+    }
+    void incTimeout(int i) {
+        timeouts[i]++;
     }
     int getTimeout(int i) {
         return timeouts[i];

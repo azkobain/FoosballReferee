@@ -36,6 +36,7 @@ public class SetActivity extends AppCompatActivity {
     enum Sides {LEFT, RIGHT}
     Sides currentSide, goalSide;
     private boolean inHandler = false;
+    private boolean inLongClick = false;
 
     private void startTimer(States state) {
         if (!inHandler) {
@@ -204,6 +205,9 @@ public class SetActivity extends AppCompatActivity {
                     case STOP:
                         outputLogo = getResources().getString(R.string.technical);
                         break;
+                    case UNDO:
+                        outputLogo = getResources().getString(R.string.app_name);
+                        break;
                 }
                 outputInfo.setText(outputLogo);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -355,12 +359,33 @@ public class SetActivity extends AppCompatActivity {
             public boolean onTouch(View v, MotionEvent event) {
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        setTimeout(Sides.LEFT, timeoutLeft);
-                        return true;
+                        return false;
                     case MotionEvent.ACTION_UP:
+                        if (inLongClick) {
+                            int timeout = currentGameSet.getTimeout(Sides.LEFT.ordinal());
+
+                            if (timeout < 2) {
+                                currentGameSet.incTimeout(Sides.LEFT.ordinal());
+                                timeout = currentGameSet.getTimeout(Sides.LEFT.ordinal());
+                                timeoutLeft.setText(String.format(Locale.getDefault(), "%d", timeout));
+                                currentGameSet.setCurrentState(States.UNDO);
+                                currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
+                                setTimer();
+                            }
+                            inLongClick = false;
+                        }
+                        else
+                            setTimeout(Sides.LEFT, timeoutLeft);
                         inHandler = false;
-                        return true;
+                        return false;
                 }
+                return false;
+            }
+        });
+        timeoutLeft.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                inLongClick = true;
                 return false;
             }
         });
@@ -371,12 +396,33 @@ public class SetActivity extends AppCompatActivity {
             public boolean onTouch(View v, MotionEvent event) {
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        setTimeout(Sides.RIGHT, timeoutRight);
-                        return true;
+                        return false;
                     case MotionEvent.ACTION_UP:
+                        if (inLongClick) {
+                            int timeout = currentGameSet.getTimeout(Sides.RIGHT.ordinal());
+
+                            if (timeout < 2) {
+                                currentGameSet.incTimeout(Sides.RIGHT.ordinal());
+                                timeout = currentGameSet.getTimeout(Sides.RIGHT.ordinal());
+                                timeoutRight.setText(String.format(Locale.getDefault(), "%d", timeout));
+                                currentGameSet.setCurrentState(States.UNDO);
+                                currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
+                                setTimer();
+                            }
+                            inLongClick = false;
+                        }
+                        else
+                            setTimeout(Sides.RIGHT, timeoutRight);
                         inHandler = false;
-                        return true;
+                        return false;
                 }
+                return false;
+            }
+        });
+        timeoutRight.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                inLongClick = true;
                 return false;
             }
         });
@@ -406,12 +452,33 @@ public class SetActivity extends AppCompatActivity {
             public boolean onTouch(View v, MotionEvent event) {
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        setScore(Sides.LEFT, scoreLeft);
-                        return true;
+                        return false;
                     case MotionEvent.ACTION_UP:
+                        if (inLongClick) {
+                            int score = currentGameSet.getScore(Sides.LEFT.ordinal());
+
+                            if (score > 0) {
+                                currentGameSet.decScore(Sides.LEFT.ordinal());
+                                score = currentGameSet.getScore(Sides.LEFT.ordinal());
+                                scoreLeft.setText(String.format(Locale.getDefault(), "%d", score));
+                                currentGameSet.setCurrentState(States.UNDO);
+                                currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
+                                setTimer();
+                            }
+                            inLongClick = false;
+                        }
+                        else
+                            setScore(Sides.LEFT, scoreLeft);
                         inHandler = false;
-                        return true;
+                        return false;
                 }
+                return false;
+            }
+        });
+        scoreLeft.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                inLongClick = true;
                 return false;
             }
         });
@@ -422,12 +489,33 @@ public class SetActivity extends AppCompatActivity {
             public boolean onTouch(View v, MotionEvent event) {
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        setScore(Sides.RIGHT, scoreRight);
-                        return true;
+                        return false;
                     case MotionEvent.ACTION_UP:
+                        if (inLongClick) {
+                            int score = currentGameSet.getScore(Sides.RIGHT.ordinal());
+
+                            if (score > 0) {
+                                currentGameSet.decScore(Sides.RIGHT.ordinal());
+                                score = currentGameSet.getScore(Sides.RIGHT.ordinal());
+                                scoreRight.setText(String.format(Locale.getDefault(), "%d", score));
+                                currentGameSet.setCurrentState(States.UNDO);
+                                currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
+                                setTimer();
+                            }
+                            inLongClick = false;
+                        }
+                        else
+                            setScore(Sides.RIGHT, scoreRight);
                         inHandler = false;
-                        return true;
+                        return false;
                 }
+                return false;
+            }
+        });
+        scoreRight.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                inLongClick = true;
                 return false;
             }
         });
