@@ -18,4 +18,24 @@
     <string name="time_to_prepare">Prepare for game</string>
     <string name="accept_new">Press again to start new game</string>
     <string name="remain">Timeouts remain:</string>
+    <string name="format">Select format:</string>
+    <string name="league">League</string>
+    <string name="bon">BoN</string>
+    <string name="division">Select division:</string>
+    <string name="div12">1, 2</string>
+    <string name="amateur">Amateur</string>
+    <string name="start">Start</string>
+    <string name="config">Configure format:</string>
+    <string name="tvsets">Sets: </string>
+    <string name="tvgoals">Goals: </string>
+    <string name="tvbalance">End at: </string>
+    <string name="empty">
+
+
+
+
+
+
+
+    </string>
 </resources>

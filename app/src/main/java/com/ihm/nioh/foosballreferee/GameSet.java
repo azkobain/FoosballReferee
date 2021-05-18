@@ -1,9 +1,9 @@
 package com.ihm.nioh.foosballreferee;
 
 enum States {
-    UNDO(0), STOP(0), GAME_MID(10), GAME_NO_MID(15), GOAL(5), TIMEOUT(30);
+    UNDO(0), STOP(0), GAME_MID(10), GAME_NO_MID(15), GOAL(5), TIMEOUT(30), BSETS(90), BGAMES(180);
 
-    private double time;
+    private final double time;
 
     States(double time) {
         this.time = time;
@@ -15,9 +15,9 @@ enum States {
 }
 
 public class GameSet {
-    private int resets[] = {0, 0};
-    private int score[] = {0, 0};
-    private int timeouts[] = {2, 2};
+    private final int[] resets = {0, 0};
+    private final int[] score = {0, 0};
+    private final int[] timeouts = {2, 2};
     private double currentTime = 0;
     private States currentState = States.STOP;
     private States previousState = States.STOP;

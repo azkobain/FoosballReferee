@@ -2,6 +2,7 @@ package com.ihm.nioh.foosballreferee;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.os.Build;
 import android.os.CountDownTimer;
@@ -16,14 +17,19 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
+import java.util.ArrayList;
 import java.util.Locale;
+import android.util.Log;
 
 public class SetActivity extends AppCompatActivity {
+    private final ArrayList<Game> games = new ArrayList<>();
+    private Game currentGame;
     private GameSet currentGameSet;
     private TextView outputInfo;
     private Button resetLeft;
     private Button resetRight;
-    private boolean showResets = false;
+    private Button timeNoMid;
+    private Button timeMid;
     private Button timeoutLeft;
     private Button timeoutRight;
     private Button teamSide;
@@ -37,6 +43,22 @@ public class SetActivity extends AppCompatActivity {
     Sides currentSide, goalSide;
     private boolean inHandler = false;
     private boolean inLongClick = false;
+    private int winSets;
+    private int nGame;
+    private boolean isFreeze = false;
+
+    public void freezeButtons(boolean freeze) {
+        timeNoMid.setEnabled(!freeze);
+        timeMid.setEnabled(!freeze);
+        resetLeft.setEnabled(!freeze);
+        resetRight.setEnabled(!freeze);
+        timeoutLeft.setEnabled(!freeze);
+        timeoutRight.setEnabled(!freeze);
+        teamSide.setEnabled(!freeze);
+        scoreLeft.setEnabled(!freeze);
+        scoreRight.setEnabled(!freeze);
+        isFreeze = freeze;
+    }
 
     private void startTimer(States state) {
         if (!inHandler) {
@@ -44,12 +66,20 @@ public class SetActivity extends AppCompatActivity {
             currentGameSet.setCurrentState(state);
             currentGameSet.setPreviousState(state);
             setTimer();
-            if (!showResets) {
-                resetLeft.setVisibility(View.VISIBLE);
-                resetRight.setVisibility(View.VISIBLE);
-                showResets = true;
-            }
         }
+    }
+
+    private void showResets(boolean showRes) {
+        if (showRes) {
+            resetLeft.setVisibility(View.VISIBLE);
+            resetRight.setVisibility(View.VISIBLE);
+        }
+        else {
+            resetLeft.setVisibility(View.INVISIBLE);
+            resetRight.setVisibility(View.INVISIBLE);
+        }
+        resetLeft.setEnabled(showRes);
+        resetRight.setEnabled(showRes);
     }
 
     private void setReset(Sides side, Button pressed) {
@@ -68,9 +98,7 @@ public class SetActivity extends AppCompatActivity {
                 } else {
                     String buttonNewText = getResources().getString(R.string.reset_third);
 
-                    showResets = false;
-                    resetRight.setVisibility(View.INVISIBLE);
-                    resetLeft.setVisibility(View.INVISIBLE);
+                    showResets(false);
 
                     pressed.setText(buttonNewText);
                     outputInfo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 80);
@@ -98,16 +126,10 @@ public class SetActivity extends AppCompatActivity {
             currentGameSet.setSideNotFreeze(false);
 
             String reset = getResources().getString(R.string.reset_first);
-
             resetLeft.setText(reset);
-            resetLeft.setVisibility(View.INVISIBLE);
-
             resetRight.setText(reset);
-            resetRight.setVisibility(View.INVISIBLE);
-
             currentGameSet.setResets();
-
-            showResets = false;
+            showResets(false);
         }
     }
 
@@ -133,9 +155,6 @@ public class SetActivity extends AppCompatActivity {
     }
 
     private void setOwnerSide() {
-        if (acceptNew)
-            acceptNew = false;
-
         if (currentGameSet.isSideNotFreeze()) {
             if (currentGameSet.getCurrentState() == States.GOAL) {
                 changeSide(goalSide);
@@ -162,16 +181,13 @@ public class SetActivity extends AppCompatActivity {
     }
 
     private void setTimer() {
-        if (acceptNew)
-            acceptNew = false;
-
         if (currentGameSet.isSideNotFreeze())
             currentGameSet.setSideNotFreeze(false);
 
-        if (currentGameSet.getCurrentState() != States.TIMEOUT) {
-            resetLeft.setEnabled(true);
-            resetRight.setEnabled(true);
-        }
+        showResets(currentGameSet.getCurrentState() != States.TIMEOUT &&
+                   currentGameSet.getCurrentState() != States.GOAL &&
+                   currentGameSet.getCurrentState() != States.BSETS &&
+                   currentGameSet.getCurrentState() != States.BGAMES);
 
         if (timerStart)
             countDownTimer.cancel();
@@ -191,6 +207,8 @@ public class SetActivity extends AppCompatActivity {
 
                 switch (currentGameSet.getCurrentState()) {
                     case GOAL:
+                    case BSETS:
+                    case BGAMES:
                         outputLogo = getResources().getString(R.string.time_to_prepare);
                         outputInfo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 50);
                         break;
@@ -221,10 +239,261 @@ public class SetActivity extends AppCompatActivity {
         timerStart = true;
     }
 
-    private void startNewGameSet() {
+    private void startGameSet() {
         if (!inHandler) {
             inHandler = true;
-            if (!acceptNew) {
+
+            if (isFreeze)
+                freezeButtons(false);
+
+            currentGameSet.newGameSet();
+
+            String reset = getResources().getString(R.string.reset_first);
+
+            resetLeft.setText(reset);
+            resetRight.setText(reset);
+            showResets(false);
+
+            timeoutLeft.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getTimeout(0)));
+            timeoutRight.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getTimeout(1)));
+
+            scoreLeft.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getScore(0)));
+            scoreRight.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getScore(1)));
+
+            if (timerStart) {
+                timerStart = false;
+                countDownTimer.cancel();
+            }
+
+            inHandler = false;
+        }
+    }
+
+    private void restartGame() {
+        String logo = getResources().getString(R.string.app_name);
+
+        outputInfo.setText(logo);
+        outputInfo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 70);
+        for ( Game game: games ) {
+            game.zeroResults();
+            game.zeroSets();
+        }
+        nGame = 0;
+        currentGame = games.get(nGame++);
+        currentGameSet = currentGame.getSet();
+        startGameSet();
+        currentGameSet.setCurrentState(States.BGAMES);
+    }
+
+    private boolean isBalance() {
+        Log.i("isBalance", "currentGame.getBalance() > currentGame.getGoals() " + (currentGame.getBalance() > currentGame.getGoals()) );
+        Log.i("isBalance", "currentGame.getResult(0) == currentGame.getResult(1) " + (currentGame.getResult(0) == currentGame.getResult(1)) );
+        Log.i("isBalance", "currentGame.getCurrentSet() == currentGame.getSets() " + (currentGame.getCurrentSet() == currentGame.getSets()) );
+        Log.i("isBalance", "currentGameSet.getScore(0) >= currentGame.getGoals() - 1 " + (currentGameSet.getScore(0) >= currentGame.getGoals() - 1) );
+        Log.i("isBalance", "currentGameSet.getScore(1) >= currentGame.getGoals() - 1 " + (currentGameSet.getScore(1) >= currentGame.getGoals() - 1) );
+        return currentGame.getBalance() > currentGame.getGoals() &&
+               currentGame.getResult(0) == currentGame.getResult(1) &&
+               currentGame.getCurrentSet() == currentGame.getSets() &&
+               currentGameSet.getScore(0) >= currentGame.getGoals() - 1 &&
+               currentGameSet.getScore(1) >= currentGame.getGoals() - 1 ; }
+
+    private boolean isBalanceWin(Sides side) {
+        Log.i("isBalanceWin", "currentGameSet.getScore(side.ordinal()) == currentGame.getBalance() " + (currentGameSet.getScore(side.ordinal()) == currentGame.getBalance()) );
+        Log.i("isBalanceWin", "currentGameSet.getScore(side.ordinal()) == 2 + currentGameSet.getScore(1 - side.ordinal()) " + (currentGameSet.getScore(side.ordinal()) == 2 + currentGameSet.getScore(1 - side.ordinal())) );
+        return currentGameSet.getScore(side.ordinal()) == currentGame.getBalance() ||
+               currentGameSet.getScore(side.ordinal()) == 2 + currentGameSet.getScore(1 - side.ordinal());
+    }
+
+    private boolean isLastSetGoal(Sides side) {
+        Log.i("isLastSetGoal", "score " + currentGameSet.getScore(side.ordinal())+", goals "+currentGame.getGoals());
+        return currentGame.getGoals() == currentGameSet.getScore(side.ordinal()); }
+
+    private boolean isLastGameGoal(Sides side) {
+        return currentGame.getResult(side.ordinal()) == winSets ||
+               currentGame.getResult(0) + currentGame.getResult(1) == currentGame.getSets(); }
+
+    private boolean isLastGame() { return nGame == games.size(); }
+
+    private void waitNewGame() {
+        countDownTimer.cancel();
+        freezeButtons(true);
+        String logo = getResources().getString(R.string.app_name);
+        outputInfo.setText(logo);
+        outputInfo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 70);
+    }
+
+    private void startNewGame() {
+        Log.i("startNewGame", "game "+ nGame);
+        currentGame = games.get(nGame++);
+        currentGameSet = currentGame.getSet();
+        inHandler = false;
+        startGameSet();
+        showResets(false);
+        currentGameSet.setCurrentState(States.BGAMES);
+        startTimer(States.BGAMES);
+    }
+
+    private void startNewSet() {
+        currentGameSet = currentGame.getSet();
+        inHandler = false;
+        startGameSet();
+        showResets(false);
+        currentGameSet.setCurrentState(States.BSETS);
+        startTimer(States.BSETS);
+    }
+
+    @SuppressLint({"ClickableViewAccessibility", "SourceLockedOrientationActivity"})
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        setContentView(R.layout.activity_set);
+
+        Intent intent = getIntent();
+        int nGames = intent.getIntExtra("games", 1);
+        for (int i = 0; i < nGames; i++) {
+            int nSets = intent.getIntExtra("sets", 1);
+            int nGoals = intent.getIntExtra("goals", 5);
+            int nBalance = intent.getIntExtra("balance", 5);
+            winSets = nSets / 2 + 1;
+            games.add(new Game(nSets, nGoals, nBalance));
+        }
+        nGame = 0;
+        currentGame = games.get(nGame++);
+        currentGameSet = currentGame.getSet();
+        expiredVibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+
+        outputInfo = findViewById(R.id.output_content);
+
+// Time section buttons
+
+        timeNoMid = findViewById(R.id.time_no_mid);
+        timeNoMid.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    startTimer(States.GAME_NO_MID);
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    inHandler = false;
+                    return true;
+            }
+            return false;
+        });
+
+        timeMid = findViewById(R.id.time_mid);
+        timeMid.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    startTimer(States.GAME_MID);
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    inHandler = false;
+                    return true;
+            }
+            return false;
+        });
+
+        resetLeft = findViewById(R.id.reset_left);
+        resetLeft.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    setReset(Sides.LEFT, resetLeft);
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    inHandler = false;
+                    return true;
+            }
+            return false;
+        });
+
+        resetRight = findViewById(R.id.reset_right);
+        resetRight.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    setReset(Sides.RIGHT, resetRight);
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    inHandler = false;
+                    return true;
+            }
+            return false;
+        });
+        showResets(false);
+
+// Timeout section buttons
+
+        timeoutLeft = findViewById(R.id.timeout_left);
+        timeoutLeft.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    return false;
+                case MotionEvent.ACTION_UP:
+                    if (inLongClick) {
+                        int timeout = currentGameSet.getTimeout(Sides.LEFT.ordinal());
+
+                        if (timeout < 2) {
+                            currentGameSet.incTimeout(Sides.LEFT.ordinal());
+                            timeout = currentGameSet.getTimeout(Sides.LEFT.ordinal());
+                            timeoutLeft.setText(String.format(Locale.getDefault(), "%d", timeout));
+                            currentGameSet.setCurrentState(States.UNDO);
+                            currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
+                            setTimer();
+                        }
+                        inLongClick = false;
+                    }
+                    else
+                        setTimeout(Sides.LEFT, timeoutLeft);
+                    inHandler = false;
+                    return false;
+            }
+            return false;
+        });
+        timeoutLeft.setOnLongClickListener(v -> {
+            inLongClick = true;
+            return false;
+        });
+
+        timeoutRight = findViewById(R.id.timeout_right);
+        timeoutRight.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    return false;
+                case MotionEvent.ACTION_UP:
+                    if (inLongClick) {
+                        int timeout = currentGameSet.getTimeout(Sides.RIGHT.ordinal());
+
+                        if (timeout < 2) {
+                            currentGameSet.incTimeout(Sides.RIGHT.ordinal());
+                            timeout = currentGameSet.getTimeout(Sides.RIGHT.ordinal());
+                            timeoutRight.setText(String.format(Locale.getDefault(), "%d", timeout));
+                            currentGameSet.setCurrentState(States.UNDO);
+                            currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
+                            setTimer();
+                        }
+                        inLongClick = false;
+                    }
+                    else
+                        setTimeout(Sides.RIGHT, timeoutRight);
+                    inHandler = false;
+                    return false;
+            }
+            return false;
+        });
+        timeoutRight.setOnLongClickListener(v -> {
+            inLongClick = true;
+            return false;
+        });
+
+// Low section buttons
+
+        teamSide = findViewById(R.id.team_side);
+        currentSide = Sides.LEFT;
+        teamSide.setOnClickListener(v -> setOwnerSide());
+
+        final Button startGame = findViewById(R.id.new_game);
+        startGame.setOnClickListener(v -> {
+            acceptNew = !acceptNew;
+            if (acceptNew) {
                 if (timerStart) {
                     timerStart = false;
                     countDownTimer.cancel();
@@ -234,304 +503,154 @@ public class SetActivity extends AppCompatActivity {
                 outputInfo.setText(logo);
                 outputInfo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 45);
                 acceptNew = true;
-            } else {
-                currentGameSet.newGameSet();
-
-                String logo = getResources().getString(R.string.app_name);
-
-                outputInfo.setText(logo);
-                outputInfo.setTextSize(TypedValue.COMPLEX_UNIT_SP, 70);
-
-
-                String reset = getResources().getString(R.string.reset_first);
-
-                resetLeft.setText(reset);
-                resetLeft.setVisibility(View.INVISIBLE);
-
-                resetRight.setText(reset);
-                resetRight.setVisibility(View.INVISIBLE);
-
-                showResets = false;
-
-                timeoutLeft.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getTimeout(0)));
-                timeoutRight.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getTimeout(0)));
-
-                scoreLeft.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getScore(0)));
-                scoreRight.setText(String.format(Locale.getDefault(), "%d", currentGameSet.getScore(0)));
-
-                if (timerStart) {
-                    timerStart = false;
-                    countDownTimer.cancel();
-                }
-
-                acceptNew = false;
             }
-            inHandler = false;
-        }
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        setContentView(R.layout.activity_set);
-
-        currentGameSet = new GameSet();
-        expiredVibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-
-        outputInfo = findViewById(R.id.output_content);
-
-// Time section buttons
-
-        final Button timeNoMid = findViewById(R.id.time_no_mid);
-        timeNoMid.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        startTimer(States.GAME_NO_MID);
-                        return true;
-                    case MotionEvent.ACTION_UP:
-                        inHandler = false;
-                        return true;
-                }
-                return false;
-            }
-        });
-
-        final Button timeMid = findViewById(R.id.time_mid);
-        timeMid.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        startTimer(States.GAME_MID);
-                        return true;
-                    case MotionEvent.ACTION_UP:
-                        inHandler = false;
-                        return true;
-                }
-                return false;
-            }
-        });
-
-        resetLeft = findViewById(R.id.reset_left);
-        resetLeft.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        setReset(Sides.LEFT, resetLeft);
-                        return true;
-                    case MotionEvent.ACTION_UP:
-                        inHandler = false;
-                        return true;
-                }
-                return false;
-            }
-        });
-        resetLeft.setVisibility(View.INVISIBLE);
-
-        resetRight = findViewById(R.id.reset_right);
-        resetRight.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        setReset(Sides.RIGHT, resetRight);
-                        return true;
-                    case MotionEvent.ACTION_UP:
-                        inHandler = false;
-                        return true;
-                }
-                return false;
-            }
-        });
-        resetRight.setVisibility(View.INVISIBLE);
-        showResets = false;
-
-// Timeout section buttons
-
-        timeoutLeft = findViewById(R.id.timeout_left);
-        timeoutLeft.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        return false;
-                    case MotionEvent.ACTION_UP:
-                        if (inLongClick) {
-                            int timeout = currentGameSet.getTimeout(Sides.LEFT.ordinal());
-
-                            if (timeout < 2) {
-                                currentGameSet.incTimeout(Sides.LEFT.ordinal());
-                                timeout = currentGameSet.getTimeout(Sides.LEFT.ordinal());
-                                timeoutLeft.setText(String.format(Locale.getDefault(), "%d", timeout));
-                                currentGameSet.setCurrentState(States.UNDO);
-                                currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
-                                setTimer();
-                            }
-                            inLongClick = false;
-                        }
-                        else
-                            setTimeout(Sides.LEFT, timeoutLeft);
-                        inHandler = false;
-                        return false;
-                }
-                return false;
-            }
-        });
-        timeoutLeft.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                inLongClick = true;
-                return false;
-            }
-        });
-
-        timeoutRight = findViewById(R.id.timeout_right);
-        timeoutRight.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        return false;
-                    case MotionEvent.ACTION_UP:
-                        if (inLongClick) {
-                            int timeout = currentGameSet.getTimeout(Sides.RIGHT.ordinal());
-
-                            if (timeout < 2) {
-                                currentGameSet.incTimeout(Sides.RIGHT.ordinal());
-                                timeout = currentGameSet.getTimeout(Sides.RIGHT.ordinal());
-                                timeoutRight.setText(String.format(Locale.getDefault(), "%d", timeout));
-                                currentGameSet.setCurrentState(States.UNDO);
-                                currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
-                                setTimer();
-                            }
-                            inLongClick = false;
-                        }
-                        else
-                            setTimeout(Sides.RIGHT, timeoutRight);
-                        inHandler = false;
-                        return false;
-                }
-                return false;
-            }
-        });
-        timeoutRight.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                inLongClick = true;
-                return false;
-            }
-        });
-
-// Low section buttons
-
-        teamSide = findViewById(R.id.team_side);
-        currentSide = Sides.LEFT;
-        teamSide.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                setOwnerSide();
-            }
-        });
-
-        final Button startGame = findViewById(R.id.new_game);
-        startGame.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startNewGameSet();
-            }
+            else
+                restartGame();
         });
 
         scoreLeft = findViewById(R.id.score_left);
-        scoreLeft.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        return false;
-                    case MotionEvent.ACTION_UP:
-                        if (inLongClick) {
-                            int score = currentGameSet.getScore(Sides.LEFT.ordinal());
+        scoreLeft.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    return false;
+                case MotionEvent.ACTION_UP:
+                    if (inLongClick) {
+                        int score = currentGameSet.getScore(Sides.LEFT.ordinal());
 
-                            if (score > 0) {
-                                currentGameSet.decScore(Sides.LEFT.ordinal());
-                                score = currentGameSet.getScore(Sides.LEFT.ordinal());
-                                scoreLeft.setText(String.format(Locale.getDefault(), "%d", score));
-                                currentGameSet.setCurrentState(States.UNDO);
-                                currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
-                                setTimer();
-                            }
-                            inLongClick = false;
+                        if (score > 0) {
+                            currentGameSet.decScore(Sides.LEFT.ordinal());
+                            score = currentGameSet.getScore(Sides.LEFT.ordinal());
+                            scoreLeft.setText(String.format(Locale.getDefault(), "%d", score));
+                            currentGameSet.setCurrentState(States.UNDO);
+                            currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
+                            setTimer();
                         }
-                        else
-                            setScore(Sides.LEFT, scoreLeft);
-                        inHandler = false;
-                        return false;
-                }
-                return false;
+                        inLongClick = false;
+                    }
+                    else {
+                        setScore(Sides.LEFT, scoreLeft);
+                        if (isBalance()) {
+                            Log.i("LeftBalance", "LeftBalance");
+                            if (isBalanceWin(Sides.LEFT)) {
+                                Log.i("isBalanceWin", "LeftWin");
+                                currentGame.setResult(Sides.LEFT.ordinal());
+                                waitNewGame();
+                            }
+                        }
+                        else {
+                            if (isLastSetGoal(Sides.LEFT)) {
+                                Log.i("if", "isLastSetGoal");
+                                currentGame.setResult(Sides.LEFT.ordinal());
+                                if (isLastGameGoal(Sides.LEFT)) {
+                                    Log.i("if", "isLastGameGoal");
+                                    if (isLastGame()) {
+                                        Log.i("if", "isLastGame");
+                                        waitNewGame();
+                                    }
+                                    else {
+                                        Log.i("if", "!isLastGame");
+                                        startNewGame();
+                                    }
+                                }
+                                else {
+                                    Log.i("if", "!isLastGameGoal");
+                                    startNewSet();
+                                }
+                            }
+                        }
+                    }
+                    inHandler = false;
+                    return false;
             }
+            return false;
         });
-        scoreLeft.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                inLongClick = true;
-                return false;
-            }
+        scoreLeft.setOnLongClickListener(v -> {
+            inLongClick = true;
+            return false;
         });
 
         scoreRight = findViewById(R.id.score_right);
-        scoreRight.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        return false;
-                    case MotionEvent.ACTION_UP:
-                        if (inLongClick) {
-                            int score = currentGameSet.getScore(Sides.RIGHT.ordinal());
+        scoreRight.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    return false;
+                case MotionEvent.ACTION_UP:
+                    if (inLongClick) {
+                        int score = currentGameSet.getScore(Sides.RIGHT.ordinal());
 
-                            if (score > 0) {
-                                currentGameSet.decScore(Sides.RIGHT.ordinal());
-                                score = currentGameSet.getScore(Sides.RIGHT.ordinal());
-                                scoreRight.setText(String.format(Locale.getDefault(), "%d", score));
-                                currentGameSet.setCurrentState(States.UNDO);
-                                currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
-                                setTimer();
-                            }
-                            inLongClick = false;
+                        if (score > 0) {
+                            currentGameSet.decScore(Sides.RIGHT.ordinal());
+                            score = currentGameSet.getScore(Sides.RIGHT.ordinal());
+                            scoreRight.setText(String.format(Locale.getDefault(), "%d", score));
+                            currentGameSet.setCurrentState(States.UNDO);
+                            currentGameSet.setCurrentTime(currentGameSet.getCurrentState().getTime());
+                            setTimer();
                         }
-                        else
-                            setScore(Sides.RIGHT, scoreRight);
-                        inHandler = false;
-                        return false;
-                }
-                return false;
+                        inLongClick = false;
+                    }
+                    else {
+                        setScore(Sides.RIGHT, scoreRight);
+                        if (isBalance()) {
+                            Log.i("RightBalance", "RightBalance");
+                            if (isBalanceWin(Sides.RIGHT)) {
+                                Log.i("isBalanceWin", "RightWin");
+                                currentGame.setResult(Sides.RIGHT.ordinal());
+                                waitNewGame();
+                            }
+                        }
+                        else {
+                            if (isLastSetGoal(Sides.RIGHT)) {
+                                Log.i("if", "isLastSetGoal");
+                                currentGame.setResult(Sides.RIGHT.ordinal());
+                                if (isLastGameGoal(Sides.RIGHT)) {
+                                    Log.i("if", "isLastGameGoal");
+                                    if (isLastGame()) {
+                                        Log.i("if", "isLastGame");
+                                        waitNewGame();
+                                    }
+                                    else {
+                                        Log.i("if", "!isLastGame");
+                                        startNewGame();
+                                    }
+                                }
+                                else {
+                                    Log.i("if", "!isLastGameGoal");
+                                    startNewSet();
+                                }
+                            }
+                        }
+                    }
+                    inHandler = false;
+                    return false;
             }
+            return false;
         });
-        scoreRight.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                inLongClick = true;
-                return false;
-            }
+        scoreRight.setOnLongClickListener(v -> {
+            inLongClick = true;
+            return false;
         });
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if ((keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)) {
-            startTimer(States.GAME_NO_MID);
-            inHandler = false;
-            return true;
-        } else if ((keyCode == KeyEvent.KEYCODE_VOLUME_UP)) {
-            startTimer(States.GAME_MID);
-            inHandler = false;
-            return true;
-        } else
-            return super.onKeyDown(keyCode, event);
+        if (!isFreeze) {
+            if ((keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)) {
+                startTimer(States.GAME_NO_MID);
+                inHandler = false;
+                return true;
+            } else if ((keyCode == KeyEvent.KEYCODE_VOLUME_UP)) {
+                startTimer(States.GAME_MID);
+                inHandler = false;
+                return true;
+            } else
+                return super.onKeyDown(keyCode, event);
+        }
+        return true;
+    }
+
+    @Override
+    public void onBackPressed() {
+        countDownTimer.cancel();
+        startActivity(new Intent(this, FormatActivity.class));
     }
 }
